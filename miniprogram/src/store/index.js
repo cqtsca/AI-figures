@@ -9,7 +9,7 @@ function load() {
   try {
     if (typeof uni !== 'undefined' && uni.getStorageSync) {
       const raw = uni.getStorageSync(STORAGE_KEY)
-      if (raw) return JSON.parse(raw)
+      if (raw) return engine.hydrateSeq(JSON.parse(raw))
     }
   } catch (error) {
     console.warn('restore failed', error)
@@ -150,14 +150,14 @@ export function scanDeliver(payload) {
 }
 
 export async function financeConfirmSettlement(settlementId) {
-  const confirmed = engine.confirmSettlement(store, { settlementId })
-  if (!confirmed.ok) return confirmed
+  const row = store.settlements.find((item) => item.id === settlementId)
+  if (!row) return { ok: false, error: '结算单不存在' }
   const split = await splitToDealer({
     settlementId,
-    dealerId: confirmed.settlement.dealerId,
-    amountCny: confirmed.settlement.amountCny
+    dealerId: row.dealerId,
+    amountCny: row.amountCny
   })
-  confirmed.settlement.split = split
+  const confirmed = engine.confirmSettlement(store, { settlementId, splitResult: split })
   commit()
   return { ...confirmed, split }
 }

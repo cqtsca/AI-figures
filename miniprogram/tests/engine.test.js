@@ -110,4 +110,111 @@ describe('phase 1 sales engine', () => {
     })
     assert.equal(split.ok, false)
   })
+
+  it('keeps identifiers unique after a simulated restart', () => {
+    const state = engine.seedState()
+    engine.login(state, 'customer')
+    const first = engine.placeOrder(state, {
+      skuId: 'saw-20',
+      method: 'full',
+      idUploaded: true,
+      signed: true
+    })
+    const restored = engine.hydrateSeq(JSON.parse(JSON.stringify(state)))
+    delete restored.seq
+    engine.hydrateSeq(restored)
+    engine.login(restored, 'customer')
+    const second = engine.placeOrder(restored, {
+      skuId: 'saw-20',
+      method: 'full',
+      idUploaded: true,
+      signed: true
+    })
+    assert.equal(first.order.id, 'ord-1001')
+    assert.notEqual(second.order.id, first.order.id)
+    assert.equal(restored.orders.filter((item) => item.id === first.order.id).length, 1)
+  })
+
+  it('calculates settlement amount from the approved service fee', () => {
+    const state = engine.seedState()
+    engine.listingOf(state, 'saw-20').priceCny = 20000
+    state.commercial.serviceFeeRatePercent = 8
+    engine.login(state, 'customer')
+    const placed = engine.placeOrder(state, {
+      skuId: 'saw-20',
+      method: 'full',
+      idUploaded: true,
+      signed: true
+    })
+    engine.applyHuijuPayment(state, {
+      orderId: placed.order.id,
+      payment: { mock: true }
+    })
+    engine.login(state, 'dealer')
+    const delivered = engine.deliverByScan(state, {
+      dealerId: 'd-chengdu',
+      orderId: placed.order.id
+    })
+    assert.equal(delivered.settlement.amountCny, 1600)
+  })
+
+  it('delivers retail trowel orders from the company warehouse', () => {
+    const state = engine.seedState()
+    engine.login(state, 'customer')
+    const placed = engine.placeOrder(state, {
+      skuId: 'trowel-24',
+      method: 'full',
+      idUploaded: true,
+      signed: true
+    })
+    engine.applyHuijuPayment(state, {
+      orderId: placed.order.id,
+      payment: { mock: true }
+    })
+    engine.login(state, 'dealer')
+    const delivered = engine.deliverByScan(state, {
+      dealerId: 'd-chengdu',
+      orderId: placed.order.id
+    })
+    assert.equal(delivered.ok, true)
+    assert.equal(delivered.order.delivery.from, 'company_warehouse')
+    assert.equal(
+      state.dealers[0].serials.every((row) => row.status === 'in_stock'),
+      true
+    )
+  })
+
+  it('keeps failed splits on pending_finance so finance can retry', () => {
+    const state = engine.seedState()
+    engine.login(state, 'customer')
+    const placed = engine.placeOrder(state, {
+      skuId: 'saw-20',
+      method: 'full',
+      idUploaded: true,
+      signed: true
+    })
+    engine.applyHuijuPayment(state, {
+      orderId: placed.order.id,
+      payment: { mock: true }
+    })
+    engine.login(state, 'dealer')
+    const delivered = engine.deliverByScan(state, {
+      dealerId: 'd-chengdu',
+      orderId: placed.order.id
+    })
+    engine.login(state, 'finance')
+    const failed = engine.confirmSettlement(state, {
+      settlementId: delivered.settlement.id,
+      splitResult: { ok: false, error: '服务费金额未审批，不能分账' }
+    })
+    assert.equal(failed.ok, false)
+    assert.equal(delivered.settlement.status, 'pending_finance')
+    delivered.settlement.amountCny = 100
+    const ok = engine.confirmSettlement(state, {
+      settlementId: delivered.settlement.id,
+      splitResult: { ok: true, mock: true }
+    })
+    assert.equal(ok.ok, true)
+    assert.equal(ok.settlement.status, 'confirmed')
+  })
 })

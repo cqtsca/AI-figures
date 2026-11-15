@@ -55,7 +55,7 @@
       <view v-if="!settlements.length" class="muted">交付登记后才会出分账单。</view>
       <view v-for="row in settlements" :key="row.id" class="row between spec">
         <text>{{ row.id }}</text>
-        <text>{{ row.status === 'confirmed' ? '财务已确认' : '待财务确认' }}</text>
+        <text>{{ settlementStatus(row) }}</text>
       </view>
     </view>
     <button class="btn btn-ghost" @tap="goLogin">切换角色</button>
@@ -67,7 +67,7 @@
 import { computed, ref } from 'vue'
 import RoleTabs from '../../components/role-tabs.vue'
 import { currentRole, scanDeliver, store } from '../../store/index.js'
-import { dealerStock } from '../../store/engine.js'
+import { dealerStock, usesCompanyWarehouse } from '../../store/engine.js'
 
 const dealerId = computed(() => {
   const user = currentRole()
@@ -94,11 +94,18 @@ function goLogin() {
   uni.redirectTo({ url: '/pages/login/login' })
 }
 
+function settlementStatus(row) {
+  if (row.status === 'confirmed') return '财务已确认'
+  if (row.amountCny == null) return '待审服务费金额'
+  return '待财务确认'
+}
+
 function deliver(order) {
   const candidate =
     stock.value &&
     stock.value.serials.find((row) => row.skuId === order.skuId && row.status === 'in_stock')
-  if (!candidate && order.channel !== 'tender') {
+  const warehouse = usesCompanyWarehouse(order)
+  if (!candidate && !warehouse) {
     uni.showToast({ title: '该 SKU 铺货库存不足', icon: 'none' })
     return
   }

@@ -31,7 +31,7 @@
     <view class="card">
       <view class="h1" style="font-size: 32rpx">结算单</view>
       <view v-for="row in store.settlements" :key="row.id" class="method">
-        <view>{{ row.id }} · {{ row.status }}</view>
+        <view>{{ row.id }} · {{ formatCny(row.amountCny) }} · {{ row.status }}</view>
         <view class="muted">{{ row.note }}</view>
         <button
           v-if="row.status === 'pending_finance'"
@@ -39,7 +39,7 @@
           size="mini"
           @tap="confirm(row.id)"
         >
-          确认分账（模拟汇聚）
+          {{ row.split && !row.split.ok ? '重试分账（模拟汇聚）' : '确认分账（模拟汇聚）' }}
         </button>
       </view>
     </view>
@@ -100,11 +100,7 @@ function decideFee(decision) {
 async function confirm(id) {
   const result = await financeConfirmSettlement(id)
   uni.showToast({
-    title: result.ok
-      ? result.split && result.split.ok
-        ? '已模拟分账'
-        : result.split.error
-      : result.error,
+    title: result.ok ? '已模拟分账' : result.error,
     icon: 'none'
   })
 }

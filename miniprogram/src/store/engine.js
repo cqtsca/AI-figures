@@ -1,10 +1,51 @@
 import { BUY_METHODS, FULL_PRO_COMPOSITION, ROLES, SKUS, skuById } from '../data/catalog.js'
 
 const MAX_FULL_PRO_SETS = 2
-let seq = 1000
-const nextId = (prefix) => `${prefix}-${++seq}`
 
 export { BUY_METHODS, FULL_PRO_COMPOSITION, MAX_FULL_PRO_SETS, ROLES, SKUS, skuById }
+
+export function isFullProSku(skuId) {
+  return FULL_PRO_COMPOSITION.some((part) => part.skuId === skuId)
+}
+
+export function usesCompanyWarehouse(order) {
+  return !order || order.channel === 'tender' || !isFullProSku(order.skuId)
+}
+
+function nextId(state, prefix) {
+  state.seq = (typeof state.seq === 'number' ? state.seq : 1000) + 1
+  return `${prefix}-${state.seq}`
+}
+
+function idTail(id) {
+  const n = Number(
+    String(id || '')
+      .split('-')
+      .pop()
+  )
+  return Number.isFinite(n) ? n : 0
+}
+
+export function hydrateSeq(state) {
+  const tails = []
+  ;[state.orders, state.settlements, state.arrears, state.lockQueue].forEach((list) => {
+    ;(list || []).forEach((item) => tails.push(idTail(item.id)))
+  })
+  const maxFromIds = tails.length ? Math.max(1000, ...tails) : 1000
+  if (typeof state.seq !== 'number' || state.seq < maxFromIds) {
+    state.seq = maxFromIds
+  }
+  return state
+}
+
+export function settlementAmountCny(state, order) {
+  const rate = state.commercial && state.commercial.serviceFeeRatePercent
+  if (rate == null || Number.isNaN(Number(rate))) return null
+  const base = Number(
+    order.dueNow != null ? order.dueNow : order.machineAmount != null ? order.machineAmount : 0
+  )
+  return Math.round(base * Number(rate)) / 100
+}
 
 export function clone(value) {
   return JSON.parse(JSON.stringify(value))
@@ -93,7 +134,8 @@ export function seedState() {
     settlements: [],
     arrears: [],
     lockQueue: [],
-    qualifications: []
+    qualifications: [],
+    seq: 1000
   }
 }
 
@@ -200,7 +242,7 @@ export function placeOrder(state, payload) {
     return { ok: false, error: '请先完成资质上传与协议签字' }
   }
   const order = {
-    id: nextId('ord'),
+    id: nextId(state, 'ord'),
     userId: auth.user.id,
     role: auth.user.role,
     dealerId: payload.dealerId || (auth.user.dealerId ? auth.user.dealerId : 'd-chengdu'),
@@ -342,16 +384,18 @@ export function deliverByScan(state, { dealerId, orderId, serial }) {
   const order = state.orders.find((item) => item.id === orderId)
   if (!dealer || !order) return { ok: false, error: '经销商或订单不存在' }
   if (order.status !== 'paid') return { ok: false, error: '仅已支付订单可交付' }
-  if (order.channel === 'tender') {
+  if (usesCompanyWarehouse(order)) {
     order.delivery = {
-      serial: serial || `WH-${order.skuId}-${Date.now()}`,
+      serial: serial || `WH-${order.skuId}-${nextId(state, 'wh')}`,
       at: new Date().toISOString(),
       from: 'company_warehouse',
-      stub: !serial
+      stub: !serial,
+      note: order.channel === 'tender' ? '招标单公司仓发货' : '非铺货 SKU（如抹光机）由公司仓交付'
     }
   } else {
     const item = dealer.serials.find(
-      (row) => row.serial === serial && row.skuId === order.skuId && row.status === 'in_stock'
+      (row) =>
+        row.status === 'in_stock' && row.skuId === order.skuId && (!serial || row.serial === serial)
     )
     if (!item) return { ok: false, error: '库存中没有该序列号，或与订单 SKU 不符' }
     item.status = 'delivered'
@@ -364,19 +408,24 @@ export function deliverByScan(state, { dealerId, orderId, serial }) {
     }
   }
   order.status = 'delivered'
+  const amountCny = settlementAmountCny(state, order)
   const settlement = {
-    id: nextId('stl'),
+    id: nextId(state, 'stl'),
     orderId: order.id,
     dealerId,
     type: 'service_fee',
-    amountCny: state.commercial.serviceFeeRatePercent == null ? null : 0,
+    amountCny,
     status: 'pending_finance',
-    note: '交付扫码后出分账单，财务确认后才分账。金额来自已审批服务费。'
+    split: null,
+    note:
+      amountCny == null
+        ? '服务费比例尚未审批，分账单已出但金额待定。财务确认前须先完成条款审批。'
+        : `按已审批服务费 ${state.commercial.serviceFeeRatePercent}% 计算，财务确认后才分账。`
   }
   state.settlements.unshift(settlement)
   if (order.lockEligible) {
     state.arrears.push({
-      id: nextId('arr'),
+      id: nextId(state, 'arr'),
       orderId: order.id,
       status: 'clear',
       note: '分期/租赁台账已建，尚无欠费'
@@ -385,13 +434,21 @@ export function deliverByScan(state, { dealerId, orderId, serial }) {
   return { ok: true, order, settlement }
 }
 
-export function confirmSettlement(state, { settlementId }) {
+export function confirmSettlement(state, { settlementId, splitResult }) {
   const auth = requireRole(state, ['finance'])
   if (!auth.ok) return auth
   const row = state.settlements.find((item) => item.id === settlementId)
   if (!row) return { ok: false, error: '结算单不存在' }
+  if (row.status === 'confirmed') return { ok: false, error: '结算单已确认' }
+  row.split = splitResult || null
+  if (!splitResult || !splitResult.ok) {
+    row.status = 'pending_finance'
+    row.note = (splitResult && splitResult.error) || '分账未成功，可重试'
+    return { ok: false, error: row.note, settlement: row }
+  }
   row.status = 'confirmed'
   row.confirmedAt = new Date().toISOString()
+  row.note = '财务已确认，汇聚分账成功（本期为 mock）'
   return { ok: true, settlement: row }
 }
 
@@ -400,7 +457,7 @@ export function proposeLock(state, { orderId, reason }) {
   if (!order) return { ok: false, error: '订单不存在' }
   if (!order.lockEligible) return { ok: false, error: '全款电源不锁机' }
   const ticket = {
-    id: nextId('lock'),
+    id: nextId(state, 'lock'),
     orderId,
     reason: reason || '欠费',
     status: 'proposed',

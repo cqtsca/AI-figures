@@ -1,18 +1,13 @@
 # CLAUDE.md
 
-Guidance for AI assistants (Claude Code and similar) working in this repository.
+Guidance for AI assistants working in this repository.
 
-## Repository status
+## What the project does
 
-This repository (`cqtsca/AI-figures`) is currently **empty** — it has no
-commits, no source files, and no remote branches beyond the default `main`.
-The name suggests it will hold work related to AI-generated figures,
-diagrams, or visualizations, but no code or specification exists yet.
-
-When you make the first substantive change, **update this file** to
-replace the placeholders below with real information (build commands,
-entry points, layout, etc.). Until then, treat the sections below as
-starting conventions rather than discovered facts.
+China WeChat mini program for municipal lithium construction equipment sales
+(TSEMODUX Full Pro SKUs + two trowels). Phase 1 is the sales system: mall,
+one-level dealers, three purchase methods, Huiju pay interfaces, role UIs,
+listing approval. Device lock / BMS is reserved only. Do not rebuild 页稿/yegao.
 
 ## Working in this repo
 
@@ -43,50 +38,73 @@ starting conventions rather than discovered facts.
 - When asked, keep PR titles under ~70 characters and put detail in the
   body.
 
-## Conventions to follow as code is added
+## Entry points
 
-Until the project picks a stack, default to these conservative
-conventions and **document any deviations here**:
+- Mini program source: `miniprogram/`
+- App entry: `miniprogram/src/main.js`, `miniprogram/src/App.vue`
+- Pages: `miniprogram/src/pages.json`
+- Domain rules: `miniprogram/src/store/engine.js`
+- Huiju interfaces: `miniprogram/src/api/huiju.js`
+- Reserved device APIs: `miniprogram/src/api/device.js`
 
-1. **Project metadata** — add a `README.md` describing what the project
-   is and how to run it as soon as there is something to run.
-2. **Dependencies** — pin direct dependencies; commit the lockfile.
-3. **Formatting / linting** — wire up a formatter and linter early
-   (`ruff`+`black` for Python, `prettier`+`eslint` for JS/TS) and run
-   them in CI.
-4. **Tests** — colocate tests with code or under a top-level `tests/`
-   directory; record the test command in this file once chosen.
-5. **Secrets** — never commit `.env`, credentials, or API keys. Add a
-   `.gitignore` before adding any code.
-6. **Generated artifacts** — if the project produces images, charts, or
-   other binary figures, decide early whether they live in-repo
-   (acceptable for small, version-controlled outputs) or in an external
-   store (preferred for large or frequently regenerated files).
+## Install
 
-## Placeholders to fill in
+```bash
+cd miniprogram
+npm ci
+```
 
-Once the project takes shape, replace this section with concrete
-information:
+(`npm install` is fine if `package-lock.json` needs a refresh.)
 
-- **What the project does** — one-paragraph description.
-- **Entry points** — main script, CLI command, or service to run.
-- **Install** — exact commands (`uv sync`, `npm ci`, etc.).
-- **Run** — how to start the app or generate figures locally.
-- **Test** — exact test command and where tests live.
-- **Lint / format** — exact commands.
-- **Directory layout** — top-level folders and what lives in each.
-- **External services** — any APIs, model providers, or data sources
-  the project depends on, and how credentials are supplied.
+## Run
 
-## Notes for AI assistants
+```bash
+cd miniprogram
+npm run dev:mp-weixin   # WeChat mini program → import dist/dev/mp-weixin in DevTools
+npm run dev:h5          # browser preview
+npm run dev:app         # later App resources
+```
 
-- **Don't invent structure.** If you're asked to add code and the layout
-  isn't established, ask the user where it should live rather than
-  guessing.
-- **Don't create speculative scaffolding.** Add files only as they're
-  needed for the current task. A bare repo doesn't need a `src/`,
-  `tests/`, `docs/`, `.github/workflows/`, etc. until something
-  populates them.
-- **Keep this file current.** Whenever you add tooling, change the
-  layout, or establish a convention, update the relevant section here in
-  the same commit.
+## Test
+
+```bash
+cd miniprogram
+npm test
+```
+
+Tests live in `miniprogram/tests/`.
+
+## Lint / format
+
+```bash
+cd miniprogram
+npm run lint
+npm run format
+```
+
+Prettier is the formatter. Keep WeChat pages on uni-app tags (`view`/`text`/`button`), not HTML.
+
+## Directory layout
+
+- `miniprogram/src/pages/` — login, mall, customer, dealer, sales, finance, admin, scan
+- `miniprogram/src/components/` — shared UI (role tabs)
+- `miniprogram/src/data/catalog.js` — Full Pro + trowel SKUs
+- `miniprogram/src/store/` — in-memory demo backend + persistence
+- `miniprogram/src/api/` — Huiju mock + device stubs
+- `README.md` — Chinese WeChat DevTools instructions
+
+If 页稿 files land in the repo root later, keep the mini program in `miniprogram/`; do not delete 页稿.
+
+## External services
+
+- WeChat mini program AppID: `miniprogram/src/manifest.json` → `mp-weixin.appid` (empty in this repo; use a test appid locally).
+- Huiju pay: interfaces only; mock when `huijuConfig.mock === true`. Never commit merchant secrets.
+- Device 4G/GNSS/BMS: not connected in phase 1.
+
+## Conventions
+
+1. Pin direct dependencies and commit `package-lock.json`.
+2. Chinese UI copy. Product names follow tsemodux.com; do not treat USD kit prices as China list prices.
+3. Sales may edit price / promo / service fee / rent; finance + admin must approve before customers see it.
+4. Do not implement hardware lock execution in phase 1.
+5. Secrets stay out of git (`.env`, credentials, API keys).

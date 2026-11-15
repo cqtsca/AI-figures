@@ -1,0 +1,13 @@
+node_modules
+dist
+unpackage
+.DS_Store
+*.local
+.env
+.env.*
+!.env.example
+.idea
+.vscode
+.hbuilderx
+*.log
+coverage

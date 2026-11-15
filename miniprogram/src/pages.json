@@ -1,0 +1,58 @@
+{
+  "pages": [
+    {
+      "path": "pages/login/login",
+      "style": { "navigationBarTitleText": "角色登录" }
+    },
+    {
+      "path": "pages/mall/index",
+      "style": { "navigationBarTitleText": "商城" }
+    },
+    {
+      "path": "pages/mall/detail",
+      "style": { "navigationBarTitleText": "商品详情" }
+    },
+    {
+      "path": "pages/mall/order",
+      "style": { "navigationBarTitleText": "确认订单" }
+    },
+    {
+      "path": "pages/customer/home",
+      "style": { "navigationBarTitleText": "我的" }
+    },
+    {
+      "path": "pages/customer/orders",
+      "style": { "navigationBarTitleText": "我的订单" }
+    },
+    {
+      "path": "pages/customer/devices",
+      "style": { "navigationBarTitleText": "我的设备" }
+    },
+    {
+      "path": "pages/dealer/home",
+      "style": { "navigationBarTitleText": "经销商经营" }
+    },
+    {
+      "path": "pages/sales/home",
+      "style": { "navigationBarTitleText": "销售工作台" }
+    },
+    {
+      "path": "pages/finance/home",
+      "style": { "navigationBarTitleText": "财务工作台" }
+    },
+    {
+      "path": "pages/admin/home",
+      "style": { "navigationBarTitleText": "管理员" }
+    },
+    {
+      "path": "pages/scan/index",
+      "style": { "navigationBarTitleText": "扫码" }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "市政锂电商城",
+    "navigationBarBackgroundColor": "#10243a",
+    "backgroundColor": "#eef2f0"
+  }
+}
